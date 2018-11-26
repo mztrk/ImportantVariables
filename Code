@@ -1,0 +1,113 @@
+
+
+
+path <- path
+
+getImportantVariables <- function(path, patternImp = "varImp", patternUsed = "varsUsed")
+{
+  
+  filesVarImp <- list.files(path, pattern = patternImp, full = T, recursive = T)
+  
+  filesVarUsed <- list.files(path, pattern = patternUsed, full = T, recursive = T)
+  
+  L <- list()
+  M <- list()
+  for(i in seq_along(filesVarImp))
+  {
+      
+      modelFolder <- tail(str_split(gsub("//", "/", filesVarImp[i], fixed = TRUE),
+                                    pattern = "/")[[1]],2)[1]
+
+      dt.imp <- fread(filesVarImp[i])[, c("Feature", "Gain"), with = F]
+      setnames(dt.imp, "Gain", "Gain_" %+% modelFolder)
+  
+      L[[i]] <- dt.imp
+      
+      M[[i]] <- fread(filesVarUsed[i])
+  }
+
+  dt.usedAll <- Reduce(function(...) merge(..., all = TRUE, by = c("varsToModel")), M)
+  dt.usedAll <- dt.usedAll[ varsToModel != "inTrain"]
+    
+  dt.impAll <- Reduce(function(...) merge(..., all = TRUE, by = c("Feature")), L)
+  
+ 
+  dt.impAll <- merge(dt.usedAll,
+                     dt.impAll,
+                     by.x = c("varsToModel"),
+                     by.y = c("Feature"),
+                     all.x = T)
+  
+  dt.impAll[, tablePref := str_sub(varsToModel, 1, str_locate_all(varsToModel, "_")[[1]][1,1]-1), by = c("varsToModel")] 
+  
+  prefixTab <- fread(data.path %+% "prefixTable.csv")
+  
+  dt.impAll <- merge(dt.impAll, prefixTab,
+                     by.x = c("tablePref"),
+                     by.y = c("tablesPrefixes"),
+                     all.x = T)
+  
+  setnames(dt.impAll, c("tablesToMerge", "varsToModel"), c("table", "Feature"))
+  
+  #get original varName w/o prefix
+  dt.impAll[, originalVarName := str_sub(Feature, str_locate(Feature, tablePref)[2] + 2, nchar(Feature)), by = c("Feature")]
+  
+  dt.impSummaryByVar <-  dt.impAll[, .(meanGain = rowMeans(.SD, na.rm = T),
+                                       table = table), by = c("Feature"), 
+                               .SD = names(dt.impAll)[sapply(dt.impAll, is.numeric)]]
+  
+  dt.impSummaryByVar <- assignMissing(dt.impSummaryByVar, c("meanGain"), 0)
+  
+  dt.impSummaryByVar[, meanGain := round(meanGain * 100, 3)]
+  
+  setorder(dt.impSummaryByVar,-meanGain)
+  
+  dt.impSummaryByTable <- dt.impSummaryByVar[, .(totalGainTable = sum(meanGain), varsTable = .N), by = c("table")]
+  dt.impSummaryByTable[, totalGainTable := round(totalGainTable, 3)]
+  setorder(dt.impSummaryByTable,-totalGainTable)
+  
+  
+  dt.impAll <- melt(dt.impAll, id.vars = c("tablePref", "Feature","table", "originalVarName"),
+                    variable.name = "Model", value.name = "Gain")
+  
+  dt.impAll <- dt.impAll[!is.na(Gain)]
+  dt.impAll <- dt.impAll[, Gain := round(Gain, 3)]
+  setorder(dt.impAll, -Gain)
+  
+  return(list(dt.allModelsImportance = dt.impAll,
+              dt.impSummaryByVar = dt.impSummaryByVar, 
+              dt.impSummaryByTable = dt.impSummaryByTable))
+
+}
+
+
+
+path <- "/data01/201709_TU0033_AKB//Results//Model//Retail_20171205_11AM//"
+
+resultsImportance <- getImportantVariables(path)
+resultsImportance$dt.impSummaryByTable
+resultsImportance$dt.impSummaryByVar
+resultsImportance$dt.allModelsImportance
+
+resultsImportance <- getImportantVariables(path2)
+resultsImportance$dt.impSummaryByTable
+resultsImportance$dt.impSummaryByVar
+resultsImportance$dt.allModelsImportance
+
+
+
+#get varName from var
+
+
+
+resultsImportance <- getImportantVariables(path2)
+resultsImportance$dt.impSummaryByTable
+resultsImportance$dt.impSummaryByVar
+
+
+resultsImportance <- getImportantVariables(c(path1, path2))
+resultsImportance$dt.impSummaryByTable
+resultsImportance$dt.impSummaryByVar
+
+
+
