@@ -82,7 +82,7 @@ getImportantVariables <- function(path, patternImp = "varImp", patternUsed = "va
 
 
 
-path <- "/data01/201709_TU0033_AKB//Results//Model//Retail_20171205_11AM//"
+path <- "/PATH...."
 
 resultsImportance <- getImportantVariables(path)
 resultsImportance$dt.impSummaryByTable
